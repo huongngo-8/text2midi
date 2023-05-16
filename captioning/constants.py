@@ -1,0 +1,1 @@
+GPT_API_KEY = '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'
