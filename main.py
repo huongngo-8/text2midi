@@ -306,6 +306,7 @@ encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=12, dropout=0.1, a
 model = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers=12)
 
 # TODO: add linear layers and softmax to get tokens from transformer output
+# paper says they map the output from the transformer to vocabulary sizes of the 8 different elements, so 8 linear layers lol? (much compute)
 
 
 
