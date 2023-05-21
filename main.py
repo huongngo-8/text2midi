@@ -10,6 +10,30 @@ import math
 import signal
 import hashlib
 from multiprocessing import Pool, Lock, Manager
+import torch
+import fairseq.tasks.sentence_prediction
+import fairseq.tasks.masked_lm
+from fairseq import metrics
+from fairseq.criterions import register_criterion
+from fairseq.criterions.sentence_prediction import SentencePredictionCriterion
+from fairseq.data import (MaskTokensDataset,
+                          LanguagePairDataset,
+                          PrependTokenDataset,
+                          data_utils)
+from fairseq.models import register_model, register_model_architecture
+from fairseq.models.roberta import TransformerSentenceEncoder, RobertaEncoder, RobertaModel
+from fairseq.tasks import register_task
+from fairseq.tasks.sentence_prediction import SentencePredictionTask
+import torch.nn as nn
+import torch.nn.functional as F
+import sklearn.metrics
+from functools import lru_cache
+from typing import Optional, Tuple
+import numpy as np
+import math
+import logging
+import os
+import torch
 
 
 pos_resolution = 16  # per beat (quarter note)
@@ -48,6 +72,20 @@ for i in range(duration_max):
         for k in range(2 ** i):
             dur_enc.append(len(dur_dec) - 1)
 
+logger = logging.getLogger(__name__)
+disable_cp = 'disable_cp' in os.environ
+print('disable_cp =', disable_cp)
+mask_strategy = os.environ['mask_strategy'].split(
+    '+') if 'mask_strategy' in os.environ else ['bar']
+print('mask_strategy =', mask_strategy)
+assert all(item in ['element', 'compound', 'bar'] for item in mask_strategy)
+convert_encoding = os.environ['convert_encoding'] if 'convert_encoding' in os.environ else 'OCTMIDI'
+print('convert_encoding =', convert_encoding)
+crop_length = int(os.environ['crop_length']
+                  ) if 'crop_length' in os.environ else None
+print('crop_length =', crop_length)  # of compound tokens
+max_bars = 256
+max_instruments = 256
 
 class timeout:
     def __init__(self, seconds=1, error_message='Timeout'):
@@ -177,6 +215,7 @@ def MIDI_to_encoding(midi_obj):
         assert start_ppl <= filter_symbolic_ppl, 'filtered out by the symbolic filter: ppl = {:.2f}'.format(
             start_ppl)
     encoding.sort()
+    
     return encoding
 
 def encoding_to_MIDI(encoding):
@@ -244,8 +283,36 @@ def encoding_to_MIDI(encoding):
             cur_tp = new_tp
     return midi_obj
 
+emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} # from the paper, number of tokens used to represent each feature
+
+def emb(oct_inputs, emb_dim=96):
+    
+    # oct_inputs: from MIDI_to_enc (Octuple encoded)
+    # emb_dim = 96 (768/8)
+    # 768 is model input dimension, so 96 because have to concatenate 8 embeddings
+    # Dimensions can be changed by adding linear layers between embedding and transformer layers
+
+    res = []
+    for inp in oct_inputs:
+        embedding = []
+        for i in range(len(inp)):
+            embed = nn.Embedding(emb_dict[i], emb_dim)
+            x = embed(inp[i])
+            embedding.append(x)
+        res.append(embedding)    
+
+#from base architecture in __init__.py
+encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=12, dropout=0.1, activation='gelu')
+model = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers=12)
+
+# TODO: add linear layers and softmax to get tokens from transformer output
+# paper says they map the output from the transformer to vocabulary sizes of the 8 different elements, so 8 linear layers lol? (much compute)
+
+
+
+        
 if __name__ == '__main__':
-    # (0 Measure, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
+    # (0 Bar, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
     filename = 'dq.mid'
     with open(filename, 'rb') as f:
             midi_file = io.BytesIO(f.read())
@@ -253,5 +320,8 @@ if __name__ == '__main__':
     enc = MIDI_to_encoding(midi_obj)
     print(len(enc), type(enc))
     print(enc[0], enc[1])
-    dec = encoding_to_MIDI(enc)
-    print(type(dec))
+    # dec = encoding_to_MIDI(enc)
+    # lin = torch.nn.Linear(in_features=8, out_features=1)
+    # out  = lin(dec)
+    # print(out.shape)
+    # print(type(dec))
