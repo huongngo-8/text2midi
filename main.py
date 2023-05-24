@@ -283,23 +283,47 @@ def encoding_to_MIDI(encoding):
             cur_tp = new_tp
     return midi_obj
 
-emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} # from the paper, number of tokens used to represent each feature
+def encoding_to_str(e):
+    bar_index_offset = 0
+    p = 0
+    tokens_per_note = 8
+    return ' '.join((['<s>'] * tokens_per_note)
+                    + ['<{}-{}>'.format(j, k if j > 0 else k + bar_index_offset) for i in e[p: p +
+                                                                                            sample_len_max] if i[0] + bar_index_offset < bar_max for j, k in enumerate(i)]
+                    + (['</s>'] * (tokens_per_note
+                                   - 1)))   # 8 - 1 for append_eos functionality of binarizer in fairseq
 
-def emb(oct_inputs, emb_dim=96):
-    
-    # oct_inputs: from MIDI_to_enc (Octuple encoded)
-    # emb_dim = 96 (768/8)
-    # 768 is model input dimension, so 96 because have to concatenate 8 embeddings
-    # Dimensions can be changed by adding linear layers between embedding and transformer layers
+# emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} - from the paper, number of tokens used to represent each feature
+emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
 
+def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
+    # oct_str: output from encoding to string
     res = []
+    oct_inputs = []
+    tokens = oct_str.split()
+
+    for token in tokens: # T`ODO: use 8-sized window
+        if token == '<s>':
+            oct_inputs.append(0)
+        elif token == '<pad>':
+            oct_inputs.append(1)    
+        elif token == '</s>':
+            oct_inputs.append(2)
+        elif token == '<unk>':
+            oct_inputs.append(3)    
+        else:
+            key, val = token[1:-1].split('-')
+            oct_inputs.append(emb_dict[int(key)]+int(val))
+            
+    oct_inputs = torch.IntTensor(oct_inputs)
     for inp in oct_inputs:
         embedding = []
+        embed = nn.Embedding(1236, emb_dim)
         for i in range(len(inp)):
-            embed = nn.Embedding(emb_dict[i], emb_dim)
             x = embed(inp[i])
             embedding.append(x)
-        res.append(embedding)    
+        res.append(embedding) 
+
 
 #from base architecture in __init__.py
 encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=12, dropout=0.1, activation='gelu')
@@ -317,7 +341,9 @@ if __name__ == '__main__':
     with open(filename, 'rb') as f:
             midi_file = io.BytesIO(f.read())
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
-    enc = MIDI_to_encoding(midi_obj)
+    enc = encoding_to_str(MIDI_to_encoding(midi_obj))
+
+    
     print(len(enc), type(enc))
     print(enc[0], enc[1])
     # dec = encoding_to_MIDI(enc)
