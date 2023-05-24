@@ -283,7 +283,6 @@ def encoding_to_MIDI(encoding):
             cur_tp = new_tp
     return midi_obj
 
-<<<<<<< HEAD
 def encoding_to_str(e):
     bar_index_offset = 0
     p = 0
@@ -303,7 +302,7 @@ def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
     oct_inputs = []
     tokens = oct_str.split()
 
-    for token in tokens: # T`ODO: use 8-sized window
+    for token in tokens: # TODO: use 8-sized window
         if token == '<s>':
             oct_inputs.append(0)
         elif token == '<pad>':
@@ -325,25 +324,6 @@ def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
             embedding.append(x)
         res.append(embedding) 
 
-=======
-emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} # from the paper, number of tokens used to represent each feature
-
-def emb(oct_inputs, emb_dim=96):
-    
-    # oct_inputs: from MIDI_to_enc (Octuple encoded)
-    # emb_dim = 96 (768/8)
-    # 768 is model input dimension, so 96 because have to concatenate 8 embeddings
-    # Dimensions can be changed by adding linear layers between embedding and transformer layers
-
-    res = []
-    for inp in oct_inputs:
-        embedding = []
-        for i in range(len(inp)):
-            embed = nn.Embedding(emb_dict[i], emb_dim)
-            x = embed(inp[i])
-            embedding.append(x)
-        res.append(embedding)    
->>>>>>> 839c1ffd67a280e28a2f271297d9dc8377f11e6d
 
 #from base architecture in __init__.py
 encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=12, dropout=0.1, activation='gelu')
