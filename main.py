@@ -1,35 +1,51 @@
+"""
+CLaMIDIa
+
+This module provides functionality for working with MIDI files and encoding/decoding MIDI data using the CLaMIDIa model.
+
+The module includes the following classes and functions:
+
+Variables:
+- pos_resolution: The resolution of positions per beat (quarter note).
+- bar_max: The maximum number of bars.
+- velocity_quant: The quantization value for velocity.
+- tempo_quant: The quantization value for tempo.
+- min_tempo: The minimum tempo value.
+- max_tempo: The maximum tempo value.
+- duration_max: The maximum duration value.
+- max_ts_denominator: The maximum denominator for time signature.
+- max_notes_per_bar: The maximum number of notes per bar.
+- beat_note_factor: The factor to convert beats to notes in MIDI format.
+- deduplicate: A flag indicating whether to deduplicate notes.
+- filter_symbolic: A flag indicating whether to filter symbolic music.
+- filter_symbolic_ppl: The threshold perplexity for symbolic music filtering.
+- trunc_pos: The truncation value for positions.
+- sample_len_max: The maximum length of a sample.
+- sample_overlap_rate: The overlap rate for samples.
+- ts_filter: A flag indicating whether to apply time signature filtering.
+- pool_num: The number of processes in the multiprocessing pool.
+- max_inst: The maximum number of instruments.
+- max_pitch: The maximum pitch value.
+- max_velocity: The maximum velocity value.
+- ts_dict: A dictionary mapping time signature tuples to their encoding indices.
+- ts_list: A list of time signature tuples.
+- dur_enc: A list of duration encodings.
+- dur_dec: A list of duration decodings.
+- logger: The logger object.
+- disable_cp: A flag indicating whether checkpoint is disabled.
+- mask_strategy: The mask strategy for encoding.
+- convert_encoding: The encoding format to convert.
+- crop_length: The length to crop the compound tokens.
+- max_bars: The maximum number of bars.
+- max_instruments: The maximum number of instruments.
+- emb_dict: A dictionary mapping token indices to the number of tokens used to represent each feature.
+
+"""
+
 # CLaMIDIa time
-import os
-import sys
 import io
-import zipfile
 import miditoolkit
-import random
-import time
-import math
-import signal
-import hashlib
-from multiprocessing import Pool, Lock, Manager
-import torch
-import fairseq.tasks.sentence_prediction
-import fairseq.tasks.masked_lm
-from fairseq import metrics
-from fairseq.criterions import register_criterion
-from fairseq.criterions.sentence_prediction import SentencePredictionCriterion
-from fairseq.data import (MaskTokensDataset,
-                          LanguagePairDataset,
-                          PrependTokenDataset,
-                          data_utils)
-from fairseq.models import register_model, register_model_architecture
-from fairseq.models.roberta import TransformerSentenceEncoder, RobertaEncoder, RobertaModel
-from fairseq.tasks import register_task
-from fairseq.tasks.sentence_prediction import SentencePredictionTask
 import torch.nn as nn
-import torch.nn.functional as F
-import sklearn.metrics
-from functools import lru_cache
-from typing import Optional, Tuple
-import numpy as np
 import math
 import logging
 import os
@@ -87,21 +103,6 @@ crop_length = int(os.environ['crop_length']
 print('crop_length =', crop_length)  # of compound tokens
 max_bars = 256
 max_instruments = 256
-
-class timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
-        self.seconds = seconds
-        self.error_message = error_message
-
-    def handle_timeout(self, signum, frame):
-        raise TimeoutError(self.error_message)
-
-    def __enter__(self):
-        signal.signal(signal.SIGALRM, self.handle_timeout)
-        signal.alarm(self.seconds)
-
-    def __exit__(self, exc_type, value, traceback):
-        signal.alarm(0)
 
 
 def t2e(x):
