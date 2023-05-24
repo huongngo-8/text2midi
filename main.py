@@ -35,6 +35,7 @@ import logging
 import os
 import torch
 
+from model import Clamidia
 
 pos_resolution = 16  # per beat (quarter note)
 bar_max = 256
@@ -325,16 +326,6 @@ def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
         res.append(embedding) 
 
 
-#from base architecture in __init__.py
-encoder_layer = nn.TransformerEncoderLayer(d_model=768, nhead=12, dropout=0.1, activation='gelu')
-model = nn.TransformerEncoder(encoder_layer=encoder_layer, num_layers=12)
-
-# TODO: add linear layers and softmax to get tokens from transformer output
-# paper says they map the output from the transformer to vocabulary sizes of the 8 different elements, so 8 linear layers lol? (much compute)
-
-
-
-        
 if __name__ == '__main__':
     # (0 Bar, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
     filename = 'dq.mid'
@@ -343,7 +334,13 @@ if __name__ == '__main__':
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
     enc = encoding_to_str(MIDI_to_encoding(midi_obj))
 
-    
+    num_tokens = [256, 128, 129, 256, 128, 32, 254, 49]
+    model = Clamidia(
+        d_model=768, nhead=12, dropout=0.1,
+        num_layers=12, dim_feedforward=2048,
+        num_tokens=num_tokens, activation='gelu'
+    )
+
     print(len(enc), type(enc))
     print(enc[0], enc[1])
     # dec = encoding_to_MIDI(enc)
