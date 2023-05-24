@@ -53,6 +53,8 @@ import torch
 
 from model import Clamidia
 
+from typing import Tuple, List
+
 pos_resolution = 16  # per beat (quarter note)
 bar_max = 256
 velocity_quant = 4
@@ -105,32 +107,95 @@ max_bars = 256
 max_instruments = 256
 
 
-def t2e(x):
+def t2e(x: Tuple[int, int]):
+    """
+    Converts a time signature to its corresponding encoding.
+
+    Args:
+        x: A tuple representing a time signature.
+
+    Returns:
+        The encoding of the time signature.
+    """
     assert x in ts_dict, 'unsupported time signature: ' + str(x)
     return ts_dict[x]
 
 
-def e2t(x):
+def e2t(x: int) -> Tuple[int, int]:
+    """
+    Converts an encoding to its corresponding time signature.
+
+    Args:
+        x: An integer representing an encoding.
+
+    Returns:
+        The time signature corresponding to the encoding.
+    """
     return ts_list[x]
 
 
-def d2e(x):
+def d2e(x: int) -> int:
+    """
+    Converts a duration to its corresponding encoding.
+
+    Args:
+        x: An integer representing a duration.
+
+    Returns:
+        The encoding of the duration.
+    """
     return dur_enc[x] if x < len(dur_enc) else dur_enc[-1]
 
 
-def e2d(x):
+def e2d(x: int) -> int:
+    """
+    Converts an encoding to its corresponding duration.
+
+    Args:
+        x: An integer representing an encoding.
+
+    Returns:
+        The duration corresponding to the encoding.
+    """
     return dur_dec[x] if x < len(dur_dec) else dur_dec[-1]
 
 
-def v2e(x):
+def v2e(x: int) -> int:
+    """
+    Converts a velocity to its corresponding encoding.
+
+    Args:
+        x: An integer representing a velocity.
+
+    Returns:
+        The encoding of the velocity.
+    """
     return x // velocity_quant
 
 
-def e2v(x):
+def e2v(x: int) -> int:
+    """
+    Converts an encoding to its corresponding velocity.
+
+    Args:
+        x: An integer representing an encoding.
+
+    Returns:
+        The velocity corresponding to the encoding.
+    """
     return (x * velocity_quant) + (velocity_quant // 2)
 
 
-def b2e(x):
+def b2e(x: float) -> int:
+    """
+    Converts a tempo to its corresponding encoding.
+
+    Args:
+        x: A float representing a tempo.
+
+    Returns:
+        The encoding of the tempo.
+    """
     x = max(x, min_tempo)
     x = min(x, max_tempo)
     x = x / min_tempo
@@ -138,11 +203,30 @@ def b2e(x):
     return e
 
 
-def e2b(x):
+def e2b(x: int) -> float:
+    """
+    Converts an encoding to its corresponding tempo.
+
+    Args:
+        x: An integer representing an encoding.
+
+    Returns:
+        The tempo corresponding to the encoding.
+    """
     return 2 ** (x / tempo_quant) * min_tempo
 
 
-def time_signature_reduce(numerator, denominator):
+def time_signature_reduce(numerator: int, denominator: int) -> Tuple[int, int]:
+    """
+    Reduces a time signature to fit within the maximum denominator and maximum notes per bar.
+
+    Args:
+        numerator: The numerator of the time signature.
+        denominator: The denominator of the time signature.
+
+    Returns:
+        The reduced time signature as a tuple.
+    """
     # reduction (when denominator is too large)
     while denominator > 2 ** max_ts_denominator and denominator % 2 == 0 and numerator % 2 == 0:
         denominator //= 2
@@ -155,16 +239,44 @@ def time_signature_reduce(numerator, denominator):
                 break
     return numerator, denominator
 
-def MIDI_to_encoding(midi_obj):
+
+def MIDI_to_encoding(midi_obj: miditoolkit.midi.parser.MidiFile) -> List[Tuple[int]]:
+    """Converts a MIDI file to an encoding.
+
+    This function takes a MIDI file object and converts it to an encoding that
+    represents the music in the file. The encoding is a list of 8-tuples, where
+    each tuple represents a note and its attributes.
+
+    Args:
+        midi_obj: The MIDI file object to convert.
+
+    Returns:
+        A list of 8-tuples, where each tuple represents a note and its attributes.
+        The elements of the tuple are as follows:
+        0: The bar in which the note occurs.
+        1: The position of the note within the bar.
+        2: The program number of the instrument that plays the note.
+        3: The pitch of the note.
+        4: The duration of the note.
+        5: The velocity of the note.
+        6: The time signature in effect at the start of the note.
+        7: The tempo in effect at the start of the note.
+
+    Raises:
+        AssertionError: If the time signature changes in an invalid way.
+    """
     def time_to_pos(t):
         return round(t * pos_resolution / midi_obj.ticks_per_beat)
+
     notes_start_pos = [time_to_pos(j.start)
                        for i in midi_obj.instruments for j in i.notes]
+
     if len(notes_start_pos) == 0:
         return list()
+
     max_pos = min(max(notes_start_pos) + 1, trunc_pos)
-    pos_to_info = [[None for _ in range(4)] for _ in range(
-        max_pos)]  # (Measure, TimeSig, Pos, Tempo)
+    # (Measure, TimeSig, Pos, Tempo)
+    pos_to_info = [[None for _ in range(4)] for _ in range(max_pos)]
     tsc = midi_obj.time_signature_changes
     tpc = midi_obj.tempo_changes
     for i in range(len(tsc)):
@@ -220,7 +332,32 @@ def MIDI_to_encoding(midi_obj):
     
     return encoding
 
+
 def encoding_to_MIDI(encoding):
+    """Converts an encoding to a MIDI file.
+
+    This function takes an encoding that represents a piece of music and converts
+    it to a MIDI file object. The encoding is a list of 8-tuples, where each tuple
+    represents a note and its attributes.
+
+    Args:
+        encoding: A list of 8-tuples, where each tuple represents a note and its attributes.
+        The elements of the tuple are as follows:
+        0: The bar in which the note occurs.
+        1: The position of the note within the bar.
+        2: The program number of the instrument that plays the note.
+        3: The pitch of the note.
+        4: The duration of the note.
+        5: The velocity of the note.
+        6: The time signature in effect at the start of the note.
+        7: The tempo in effect at the start of the note.
+
+    Returns:
+        A MIDI file object representing the music described by the encoding.
+
+    Raises:
+        AssertionError: If the time signature changes in an invalid way.
+    """
     # TODO: filter out non-valid notes and error handling
     bar_to_timesig = [list()
                       for _ in range(max(map(lambda x: x[0], encoding)) + 1)]
@@ -250,8 +387,9 @@ def encoding_to_MIDI(encoding):
             pos_to_tempo[i] = b2e(120.0) if i == 0 else pos_to_tempo[i - 1]
     midi_obj = miditoolkit.midi.parser.MidiFile()
 
-    def get_tick(bar, pos):
+    def get_tick(bar: int, pos: int) -> int:
         return (bar_to_pos[bar] + pos) * midi_obj.ticks_per_beat // pos_resolution
+
     midi_obj.instruments = [miditoolkit.containers.Instrument(program=(
         0 if i == 128 else i), is_drum=(i == 128), name=str(i)) for i in range(128 + 1)]
     for i in encoding:
@@ -329,7 +467,7 @@ def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
 
 if __name__ == '__main__':
     # (0 Bar, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
-    filename = 'dq.mid'
+    filename = 'model/examples/dq.mid'
     with open(filename, 'rb') as f:
             midi_file = io.BytesIO(f.read())
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
