@@ -51,6 +51,7 @@ import logging
 import os
 import torch
 
+from muzic.musicbert.musicbert import *
 from model import Clamidia
 
 from typing import Tuple, List
@@ -436,7 +437,7 @@ def encoding_to_str(e):
 # emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} - from the paper, number of tokens used to represent each feature
 emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
 
-def tokenize(oct_str, emb_dict=emb_dict, emb_dim=768):
+def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
     # oct_str: output from encoding to string
     res = []
     oct_inputs = []
@@ -455,28 +456,68 @@ def tokenize(oct_str, emb_dict=emb_dict, emb_dim=768):
             key, val = token[1:-1].split('-')
             oct_inputs.append(emb_dict[int(key)]+int(val))
             
-    tokens = torch.IntTensor(oct_inputs)
-    return tokens
+    oct_inputs = torch.IntTensor(oct_inputs)
+    for inp in oct_inputs:
+        embedding = []
+        embed = nn.Embedding(1236, emb_dim)
+        for i in range(len(inp)):
+            x = embed(inp[i])
+            embedding.append(x)
+        res.append(embedding)
+
+def gen_dictionary(file_name):
+    num = 0
+    if os.path.exists(file_name):
+        return
+    with open(file_name, 'w') as f:
+        for j in range(bar_max):
+            print('<0-{}>'.format(j), num, file=f)
+        for j in range(beat_note_factor * max_notes_per_bar * pos_resolution):
+            print('<1-{}>'.format(j), num, file=f)
+        for j in range(max_inst + 1 + 1):
+            # max_inst + 1 for percussion
+            print('<2-{}>'.format(j), num, file=f)
+        for j in range(2 * max_pitch + 1 + 1):
+            # max_pitch + 1 ~ 2 * max_pitch + 1 for percussion
+            print('<3-{}>'.format(j), num, file=f)
+        for j in range(duration_max * pos_resolution):
+            print('<4-{}>'.format(j), num, file=f)
+        for j in range(v2e(max_velocity) + 1):
+            print('<5-{}>'.format(j), num, file=f)
+        for j in range(len(ts_list)):
+            print('<6-{}>'.format(j), num, file=f)
+        for j in range(b2e(max_tempo) + 1):
+            print('<7-{}>'.format(j), num, file=f)
 
 if __name__ == '__main__':
+
     # (0 Bar, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
+    ROOT = './input0'
+    gen_dictionary('{}/dict.txt'.format(ROOT))
+    ROOT = './label'
+    gen_dictionary('{}/dict.txt'.format(ROOT))
+
+    num_tokens = [256, 128, 129, 256, 128, 32, 254, 49]
+    
+    # model = Clamidia(
+    #     d_model=768, nhead=12, dropout=0.1,
+    #     num_layers=12, dim_feedforward=2048,
+    #     num_tokens=num_tokens, activation='gelu'
+    # )
+    
     filename = 'model/examples/dq.mid'
     with open(filename, 'rb') as f:
             midi_file = io.BytesIO(f.read())
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
     enc = encoding_to_str(MIDI_to_encoding(midi_obj))
 
-    num_tokens = [256, 128, 129, 256, 128, 32, 254, 49]
-    model = Clamidia(
-        d_model=768, nhead=12, dropout=0.1,
-        num_layers=12, dim_feedforward=2048,
-        num_tokens=num_tokens, activation='gelu'
+    roberta_base = MusicBERTModel.from_pretrained('.', 
+    checkpoint_file = './checkpoint_last_musicbert_small_w_genre_head.pt',
+    user_dir='muzic/musicbert'    # activate the MusicBERT plugin with this keyword
     )
+    # ^this seems to be returning a GeneratorHubInterface instead of RobertaHubInterface. If so, we're fucked lmao
 
-    print(len(enc), type(enc))
-    print(enc[0], enc[1])
-    # dec = encoding_to_MIDI(enc)
-    # lin = torch.nn.Linear(in_features=8, out_features=1)
-    # out  = lin(dec)
-    # print(out.shape)
-    # print(type(dec))
+    hiddens = roberta_base.extract_features(enc, return_all_hiddens=True) # get outputs of all layers in a tensor, index to find TF output
+
+
+    
