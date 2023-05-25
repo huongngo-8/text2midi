@@ -8,6 +8,10 @@ __pycache__/
 
 # Distribution / packaging
 captioning/constants.py
+musiclm-pytorch/
+muzic/
+clean_midi.zip
+clean_midi/
 .Python
 build/
 develop-eggs/
