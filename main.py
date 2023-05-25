@@ -436,7 +436,7 @@ def encoding_to_str(e):
 # emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} - from the paper, number of tokens used to represent each feature
 emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
 
-def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
+def tokenize(oct_str, emb_dict=emb_dict, emb_dim=768):
     # oct_str: output from encoding to string
     res = []
     oct_inputs = []
@@ -455,15 +455,8 @@ def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
             key, val = token[1:-1].split('-')
             oct_inputs.append(emb_dict[int(key)]+int(val))
             
-    oct_inputs = torch.IntTensor(oct_inputs)
-    for inp in oct_inputs:
-        embedding = []
-        embed = nn.Embedding(1236, emb_dim)
-        for i in range(len(inp)):
-            x = embed(inp[i])
-            embedding.append(x)
-        res.append(embedding) 
-
+    tokens = torch.IntTensor(oct_inputs)
+    return tokens
 
 if __name__ == '__main__':
     # (0 Bar, 1 Pos, 2 Program, 3 Pitch, 4 Duration, 5 Velocity, 6 TimeSig, 7 Tempo)
