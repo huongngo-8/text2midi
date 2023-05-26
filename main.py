@@ -431,8 +431,7 @@ def encoding_to_str(e):
     return ' '.join((['<s>'] * tokens_per_note)
                     + ['<{}-{}>'.format(j, k if j > 0 else k + bar_index_offset) for i in e[p: p +
                                                                                             sample_len_max] if i[0] + bar_index_offset < bar_max for j, k in enumerate(i)]
-                    + (['</s>'] * (tokens_per_note
-                                   - 1)))   # 8 - 1 for append_eos functionality of binarizer in fairseq
+                    + (['</s>'] * (tokens_per_note)))   
 
 # emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} - from the paper, number of tokens used to represent each feature
 emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
@@ -440,30 +439,31 @@ emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
 def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
     # oct_str: output from encoding to string
     res = []
-    oct_inputs = []
     tokens = oct_str.split()
 
-    for token in tokens: # TODO: use 8-sized window
-        if token == '<s>':
-            oct_inputs.append(0)
-        elif token == '<pad>':
-            oct_inputs.append(1)    
-        elif token == '</s>':
-            oct_inputs.append(2)
-        elif token == '<unk>':
-            oct_inputs.append(3)    
-        else:
-            key, val = token[1:-1].split('-')
-            oct_inputs.append(emb_dict[int(key)]+int(val))
-            
-    oct_inputs = torch.IntTensor(oct_inputs)
-    for inp in oct_inputs:
-        embedding = []
-        embed = nn.Embedding(1236, emb_dim)
-        for i in range(len(inp)):
-            x = embed(inp[i])
-            embedding.append(x)
-        res.append(embedding)
+    for i in range(0,len(tokens),8): # TODO: use 8-sized window
+        window = tokens[i:min(len(tokens), i+8)]
+        oct_inputs = []
+        for token in window:
+
+            if token == '<s>':
+                oct_inputs.append(0)
+            elif token == '<pad>':
+                oct_inputs.append(1)    
+            elif token == '</s>':
+                oct_inputs.append(2)
+            elif token == '<unk>':
+                oct_inputs.append(3)    
+            else:
+                key, val = token[1:-1].split('-')
+                oct_inputs.append(emb_dict[int(key)]+int(val))
+
+        res.append(oct_inputs) 
+    print(len(res))
+    res = torch.IntTensor(res)
+    #embedder = nn.Embedding(1236, emb_dim)
+    return res
+    
 
 def gen_dictionary(file_name):
     num = 0
@@ -510,14 +510,21 @@ if __name__ == '__main__':
             midi_file = io.BytesIO(f.read())
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
     enc = encoding_to_str(MIDI_to_encoding(midi_obj))
-
+    embeds = emb(enc)
+    #print(embeds.shape)
     roberta_base = MusicBERTModel.from_pretrained('.', 
     checkpoint_file = './checkpoint_last_musicbert_small_w_genre_head.pt',
     user_dir='muzic/musicbert'    # activate the MusicBERT plugin with this keyword
     )
-    # ^this seems to be returning a GeneratorHubInterface instead of RobertaHubInterface. If so, we're fucked lmao
 
-    hiddens = roberta_base.extract_features(enc, return_all_hiddens=True) # get outputs of all layers in a tensor, index to find TF output
-
+    hiddens = roberta_base.extract_features(embeds, return_all_hiddens=False) # get outputs of all layers in a tensor, index to find TF output
+    print(len(hiddens))
+    print(hiddens[0].shape)
+    # print(hiddens[0].shape)
+    # print(hiddens[1].shape)
+    # print(hiddens[2].shape)
+    # print(hiddens[3].shape)
+    # print(hiddens[4].shape)
+    
 
     
