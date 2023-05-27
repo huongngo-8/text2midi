@@ -54,7 +54,7 @@ import torch
 from muzic.musicbert.musicbert import *
 from model import Clamidia
 
-from typing import Tuple, List
+from typing import *
 
 pos_resolution = 16  # per beat (quarter note)
 bar_max = 256
@@ -433,39 +433,51 @@ def encoding_to_str(e):
                                                                                             sample_len_max] if i[0] + bar_index_offset < bar_max for j, k in enumerate(i)]
                     + (['</s>'] * (tokens_per_note)))   
 
-# emb_dict = {0:256, 1:128, 2:129, 3:256, 4:128, 5:32, 6:254, 7:49} - from the paper, number of tokens used to represent each feature
-emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187}
+emb_dict = {0:4, 1:260, 2:388, 3:517, 4:773, 5:901, 6:933, 7:1187} # starting index of the element
 
-def emb(oct_str, emb_dict=emb_dict, emb_dim=768):
-    # oct_str: output from encoding to string
-    res = []
+def embed(oct_str: str) -> torch.IntTensor:
+    """
+    Embeds a MIDI file
+
+    Args:
+        oct_str: A song represented as a sequence of tokens <element-value>
+
+    Returns:
+        The embedding of the MIDI file
+    """
+    embedding = []
     tokens = oct_str.split()
 
     for i in range(0,len(tokens),8): # TODO: use 8-sized window
         window = tokens[i:min(len(tokens), i+8)]
         oct_inputs = []
         for token in window:
-
-            if token == '<s>':
+            if token == '<s>': # starting token
                 oct_inputs.append(0)
-            elif token == '<pad>':
+            elif token == '<pad>': # padding token
                 oct_inputs.append(1)    
-            elif token == '</s>':
+            elif token == '</s>': # ending token
                 oct_inputs.append(2)
-            elif token == '<unk>':
+            elif token == '<unk>': # unknown token
                 oct_inputs.append(3)    
             else:
-                key, val = token[1:-1].split('-')
-                oct_inputs.append(emb_dict[int(key)]+int(val))
+                ele, val = token[1:-1].split('-')
+                oct_inputs.append(emb_dict[int(ele)]+int(val))
 
-        res.append(oct_inputs) 
-    print(len(res))
-    res = torch.IntTensor(res)
-    #embedder = nn.Embedding(1236, emb_dim)
-    return res
-    
+        embedding.append(oct_inputs) 
+    embedding = torch.IntTensor(embedding)
+    return embedding
 
-def gen_dictionary(file_name):
+def gen_dictionary(file_name: str) -> Dict[str, int]:
+    """
+    Generates a dictionary of the unique values of the 8-tuple elements
+
+    Args:
+        file_name: Path to the MIDI file
+
+    Returns:
+        A dictionary of the all unique values of the elements
+    """
     num = 0
     if os.path.exists(file_name):
         return
@@ -498,7 +510,6 @@ if __name__ == '__main__':
     gen_dictionary('{}/dict.txt'.format(ROOT))
 
     num_tokens = [256, 128, 129, 256, 128, 32, 254, 49]
-    
     # model = Clamidia(
     #     d_model=768, nhead=12, dropout=0.1,
     #     num_layers=12, dim_feedforward=2048,
@@ -506,18 +517,22 @@ if __name__ == '__main__':
     # )
     
     filename = 'model/examples/dq.mid'
+    # reading in the file
     with open(filename, 'rb') as f:
-            midi_file = io.BytesIO(f.read())
+        midi_file = io.BytesIO(f.read())
+    # creating a MIDI object
     midi_obj = miditoolkit.midi.parser.MidiFile(file=midi_file)
-    enc = encoding_to_str(MIDI_to_encoding(midi_obj))
-    embeds = emb(enc)
-    #print(embeds.shape)
+    # OctupleMIDI encoding
+    encoding = encoding_to_str(MIDI_to_encoding(midi_obj))
+    # embedding the encoded MIDI
+    embedding = embed(encoding)
+    # loading the pretrained model
     roberta_base = MusicBERTModel.from_pretrained('.', 
     checkpoint_file = './checkpoint_last_musicbert_small_w_genre_head.pt',
     user_dir='muzic/musicbert'    # activate the MusicBERT plugin with this keyword
     )
-
-    hiddens = roberta_base.extract_features(embeds, return_all_hiddens=False) # get outputs of all layers in a tensor, index to find TF output
+    # get outputs of all layers in a tensor, index to find TF output
+    hiddens = roberta_base.extract_features(embedding = embed(encoding), return_all_hiddens=False)
     print(len(hiddens))
     print(hiddens[0].shape)
     # print(hiddens[0].shape)
