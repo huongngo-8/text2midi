@@ -7,15 +7,21 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+ __init__.py
+input0/
+label/
 captioning/constants.py
 musiclm-pytorch/
 muzic/
+checkpoint_last_musicbert_small_w_genre_head.pt
 clean_midi.zip
 clean_midi/
+musiclm.png
 .Python
 build/
 develop-eggs/
 dist/
+LICENSE
 downloads/
 eggs/
 .eggs/
