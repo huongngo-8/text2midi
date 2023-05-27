@@ -507,15 +507,12 @@ class AudioSpectrogramTransformer(nn.Module):
 # MIDI transformer
 
 class Clamidia(nn.Module):
-    """ClaMIDIa Model class .
+    """
+    ClaMIDIa Model class .
 
     This class implements a modification of a MusicBERT model, which is a transformer model
     designed to predict masked tokens in an input music sequence.
 
-    Attributes:
-        encoder: The transformer encoder.
-        linear_layers: A list of linear layers for predicting each element in the octuple token.
-        softmax: The softmax function for generating probability distributions.
     """
 
     def __init__(
@@ -524,7 +521,8 @@ class Clamidia(nn.Module):
             h1: int,
             h2: int,
             latent_dim: int):
-        """Initializes the ClaMIDIa model.
+        """
+        Initializes the ClaMIDIa model.
 
         Args:
             in_dim: Output dimension from MusicBERT (#notes * 8 * embed_dim)
@@ -539,11 +537,11 @@ class Clamidia(nn.Module):
         self.lin2 = nn.Linear(h1, h2)
         self.lin3 = nn.Linear(h2, latent_dim)
 
-    def forward(self, mus: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, mus: torch.Tensor) -> torch.Tensor:
         """Performs a forward pass through the model.
 
         Args:
-            x: The input tensor.
+            mus: The input tensor.
 
         Returns:
             A list of tensors, each representing the probability distribution
