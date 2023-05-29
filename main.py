@@ -532,14 +532,10 @@ if __name__ == '__main__':
     user_dir='muzic/musicbert'    # activate the MusicBERT plugin with this keyword
     )
     # get outputs of all layers in a tensor, index to find TF output
-    hiddens = roberta_base.extract_features(embedding = embed(encoding), return_all_hiddens=False)
-    print(len(hiddens))
-    print(hiddens[0].shape)
-    # print(hiddens[0].shape)
-    # print(hiddens[1].shape)
-    # print(hiddens[2].shape)
-    # print(hiddens[3].shape)
-    # print(hiddens[4].shape)
+    # hiddens: (#notes, 8, 768)
+    # [0] because extract_features returns a list (OctupleEncoder)
+    hiddens = roberta_base.extract_features(embedding = embed(encoding), return_all_hiddens=False)[0]
+
     
 
     
